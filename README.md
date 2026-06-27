@@ -53,15 +53,21 @@ const firebaseConfig = {
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /usage/{doc} { allow read, write: if true; }
+    match /{coll}/{doc} { allow read, write: if true; }
   }
 }
 ```
+(ครอบทุก collection: `usage`, `usage_days`, `verifications` — ช่วงทดสอบ ควรจำกัดสิทธิ์ก่อนใช้งานจริง)
 
-### โครงสร้างข้อมูล
-- ระบบเขียนลง collection ชื่อ **`usage`** — 1 แถวของ Excel = 1 document
-- แต่ละ document มีฟิลด์ตามคอลัมน์ Excel + `dateKey` (YYYYMMDD) + `uploadedAt`
-- เวลาอัปโหลดไฟล์วันเดิมซ้ำ ระบบจะ **ลบของวันนั้นทิ้งแล้วเขียนใหม่** (กันข้อมูลซ้ำ)
+### โครงสร้างข้อมูล (รองรับข้อมูลระยะยาว)
+- **`usage`** — 1 แถวของ Excel = 1 document, document id = signature ของรายการ จึง **กันซ้ำอัตโนมัติ** (อัปไฟล์เดิมซ้ำเขียนทับ id เดิม ไม่เกิดข้อมูลซ้ำ) แต่ละ doc มี `dateKey` (YYYYMMDD), `sig`, `uploadedAt`
+- **`usage_days`** — ดัชนีสรุปรายวัน (1 วัน = 1 doc: จำนวนแถว/มูลค่ารวม) ใช้รู้ว่ามีข้อมูลวันไหนบ้างโดยไม่ต้องโหลดทุกแถว
+- **`verifications`** — บันทึกการตรวจสอบราย HN (ผู้ตรวจ + วันเวลา)
+
+### ทำไมรองรับระยะยาว
+- **Dashboard/รายงาน** โหลดเฉพาะ "ช่วงที่เลือก" (วันล่าสุด / 7 / 30 วัน / ทั้งหมด) ผ่าน range query บน `dateKey` — ไม่ดึงทั้งฐานทุกครั้ง
+- **ค้นหา HN** ดึงตรงจาก Firebase ด้วย `where HN ==` คืนเฉพาะรายการของผู้ป่วยรายนั้นข้ามทุกวันในอดีต แม้ข้อมูลสะสมเป็นล้านแถวก็ยังเร็ว
+- ทุก query เป็น single-field จึง **ไม่ต้องสร้าง composite index**
 
 ---
 
